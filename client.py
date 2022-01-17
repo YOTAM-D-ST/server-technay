@@ -1,19 +1,28 @@
+"""yotam shavit server technay project. the client"""
 import socket
 from constants import *
 
 
 def receive_file(request, my_socket):
-    answer_file = RECEIVED_FILE_LOCATION + "\\" + request  # here you generate answer_file name from request
+    """
+    :param request:
+    :param my_socket:
+    receive the file in chunks from the server
+    """
+    request = request[1].split("\\")
+    # here you generate answer_file name from request
+    answer_file = RECEIVED_FILE_LOCATION + "\\" + request[END]
     done = False
     with open(answer_file, "wb") as f:
         while not done:
-            raw_size = my_socket.recv(MSG_LEN)
+            raw_size = my_socket.recv(MSG_LEN_PROTOCOL)
             size = raw_size.decode()
             if size.isdigit():
                 data = my_socket.recv(int(size))
             if data == EOF:
                 done = True
-            else:  # we write to file received data as is since we are in binary mode
+            # we write to file received data as is since we are in binary mode
+            else:
                 f.write(data)
 
 
@@ -30,11 +39,19 @@ def initiate_client_socket(ip, port):
 
 
 def valid_request(request, params):
+    """check if the request is valid"""
     request = request.upper()
-    if request == "TAKE_SCREENSHOT" and params is None or request == "QUIT" or \
+    if request != "TAKE_SCREENSHOT" and params is None and \
+            request != "EXIT" and params is None and request != "QUIT" \
+            and params is None:
+        return False
+    if request == "TAKE_SCREENSHOT" and params is None or \
+            request == "QUIT" or \
             request == "EXIT" or request == "DIR" and \
-            len(params) == 1 or request == "DELETE" and len(params) == 1 \
-            or request == "COPY" and len(params) == 2 or request == "EXECUTE" and len(params) == 1 \
+            len(params) == 1 or request == "DELETE" and \
+            len(params) == 1 \
+            or request == "COPY" and len(params) == 2 or \
+            request == "EXECUTE" and len(params) == 1 \
             or request == "SEND_FILE" and len(params) == 1:
         return True
     else:
@@ -42,7 +59,7 @@ def valid_request(request, params):
 
 
 def send_request_to_server(my_socket, request):
-    """sent the request"""
+    """sent the request to the server"""
     encoded_request = request.encode()
     l = len(encoded_request)
     ll = str(l)
@@ -52,35 +69,54 @@ def send_request_to_server(my_socket, request):
 
 
 def handle_server_response(my_socket, request):
-    """"print the response in a sting and in bytes"""
-    if request == 'SEND_FILE':
-        receive_file(request, my_socket)
-    raw_size = my_socket.recv(4)
-    data_size = raw_size.decode()
-    if data_size.isdigit():
-        data = my_socket.recv(int(data_size))
-        print(data.decode())
+    """
+    :param my_socket:
+    :param request:
+    handle the server response
+    """
+    try:
+
+        request = request.split()
+        if request[0] == "SEND_FILE":
+            receive_file(request, my_socket)
+        raw_size = my_socket.recv(4)
+        data_size = raw_size.decode()
+        if data_size.isdigit():
+            data = my_socket.recv(int(data_size))
+            print(data.decode())
+    except socket.error as message:
+        print("handle user input socket error", message)
+    except Exception as e:
+        print("handle user input general error", e)
 
 
 def handle_user_input(my_socket):
-    """takes the input from the user"""
-    request = ''
-
-    while request.upper() != 'EXIT' and request.upper() != "QUIT":
-        request = input("please enter a request ")
-        req_and_prms = request.split()
-        if len(req_and_prms) > 1:
-            name = req_and_prms[0]
-            params = req_and_prms[1:]
-        else:
-            name = req_and_prms[0]
-            params = None
-        request = request.upper()
-        if valid_request(name, params):
-            send_request_to_server(my_socket, request)
-            handle_server_response(my_socket)
-        else:
-            print("illegal request")
+    """takes the input from the user, split it
+    to request and parameters call the next methods"""
+    try:
+        request = ''
+        done = False
+        while not done:
+            request = input("please enter a request ")
+            req_and_prms = request.split()
+            if len(req_and_prms) > 1:
+                name = req_and_prms[START]
+                params = req_and_prms[SECOND:]
+            else:
+                name = req_and_prms[START]
+                params = None
+            request = request.upper()
+            if valid_request(name, params):
+                send_request_to_server(my_socket, request)
+                handle_server_response(my_socket, request)
+                if request.upper() == "EXIT" or request.upper() == "QUIT":
+                    done = True
+            else:
+                print("illegal request")
+    except socket.error as message:
+        print("handle user input socket error", message)
+    except Exception as e:
+        print("handle user input general error", e)
 
 
 def main():
